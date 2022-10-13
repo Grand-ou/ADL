@@ -7,8 +7,8 @@ from typing import Dict
 import torch
 from tqdm import trange
 
-from dataset import SeqClsDataset
-from utils import Vocab
+from datasets.dataset import SeqClsDataset
+from util.utils import Vocab
 
 TRAIN = "train"
 DEV = "eval"
