@@ -165,8 +165,9 @@ class SeqClsDataset(Dataset):
         data: List[Dict],
         vocab: Vocab,
         max_len: int,
+        mode: str = 'train'
     ): 
-        
+        self.mode = mode
         self.data = data
         self.vocab = vocab
         self.label_list = self.labels
@@ -180,10 +181,11 @@ class SeqClsDataset(Dataset):
     def __getitem__(self, index) -> Dict:
         instance = self.data[index]
         text = instance['text']
+        word_list = nltk.word_tokenize(text)
+        if self.mode != 'train':
+            return {'data': word_list, 'target': instance['id']}
         intent = instance['intent']
         label = self.label2idx(intent)
-        word_list = nltk.word_tokenize(text)
-        # word_idx = [self.vocab.token_to_id(word) for word in word_list]
         return {'data': word_list, 'target': label}
 
     @property
@@ -195,9 +197,9 @@ class SeqClsDataset(Dataset):
         data = [item['data'] for item in samples]  # just form a list of tensor
         target = [item['target'] for item in samples] 
         data = self.vocab.encode_batch(data)
-        target = torch.LongTensor(target)
+        if self.mode == 'train':
+            target = torch.LongTensor(target)
         data = torch.LongTensor(data)
-        # print(type(data[0]))
         return [data, target]
 
     def label2idx(self, label: str):

@@ -15,9 +15,9 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 from sklearn.metrics import classification_report, confusion_matrix
 
-from datasets.dataset import SeqTaggingClsDataset
+from datasets.dataset import SeqClsDataset
 from util.utils import Vocab
-from models.model import SeqTagger
+from models.model import SeqClassifier
 
 TRAIN = "train"
 DEV = "eval"
@@ -78,9 +78,11 @@ def main(args):
     data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
     data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
 
-
-    datasets: Dict[str, SeqTaggingClsDataset] = {
-        split: SeqTaggingClsDataset(split_data, vocab, args.max_len)
+    datasets = {}
+    datasets['train'] = 1
+    # k = [split for split, split_data in data.items()]
+    datasets: Dict[str, SeqClsDataset] = {
+        split: SeqClsDataset(split_data, vocab, args.max_len)
         for split, split_data in data.items()
     }
     
@@ -88,12 +90,12 @@ def main(args):
     # print(embeddings.shape)
     
     # TODO: init model and move model to target device(cpu / gpu)
-    model = SeqTagger(embeddings=embeddings, 
+    model = SeqClassifier(embeddings=embeddings, 
                           hidden_size=args.hidden_size, 
                           num_layers=args.num_layers, 
                           dropout=args.dropout, 
                           bidirectional=args.bidirectional, 
-                          num_class=9, 
+                          num_class=150, 
                           input_feature_dim=300)
 
     # TODO: init optimizer
@@ -116,24 +118,13 @@ def train_epoch(model, device, dataloader, criterion, optimizer):
         inputs, labels = inputs.to(device), labels.to(device)
         model.zero_grad()
         outputs = model(inputs)
-        if len(labels.shape) > 1:
-            labels = labels.squeeze(0)
-        # print(outputs, labels)
-        # print(outputs.shape, len(labels.shape))
-        # print(labels)
-        
-        loss = criterion(outputs, labels)
+        print(outputs.shape, labels.squeeze(0).shape)
+        loss = criterion(outputs, labels.squeeze(0))
         loss.backward()
         optimizer.step()
         predictions = torch.max(outputs, 1)[1]
-        # print(predictions)
-        # print(labels)
         train_loss += loss.item()
-        correct = 0
-        if torch.equal(predictions, labels):
-            correct = 1 
-
-        train_correct += correct
+        train_correct += (predictions == labels).sum().item()
     return train_loss, train_correct
 
 def valid_epoch(model, device, dataloader, criterion):
@@ -147,27 +138,21 @@ def valid_epoch(model, device, dataloader, criterion):
             inputs, labels = data
             
             inputs, labels = inputs.to(device), labels.to(device)
-            model.zero_grad()
             outputs = model(inputs)
-            if len(labels.shape) > 1:
-                labels = labels.squeeze(0)
             loss = criterion(outputs, labels)
             predictions = torch.max(outputs, 1)[1]
             y_true = np.append(y_true, labels.cpu().numpy())
             y_pred = np.append(y_pred, predictions.cpu().numpy())
-            correct = 0
-            if torch.equal(predictions, labels):
-                correct = 1 
             train_loss += loss.item()
-            train_correct += correct
+            train_correct += (predictions == labels).sum().item()
     return y_true, y_pred, train_loss, train_correct
 
 def train(device, model, datasets, args, optimizer):
     criterion = nn.CrossEntropyLoss() 
     y_true = np.array([])
     y_pred = np.array([])
-    train_loader = DataLoader(datasets['train'], batch_size=args.batch_size)
-    test_loader = DataLoader(datasets['eval'], batch_size=args.batch_size)
+    train_loader = DataLoader(datasets['train'], collate_fn=datasets['train'].collate_fn, batch_size=args.batch_size)
+    test_loader = DataLoader(datasets['eval'], collate_fn=datasets['eval'].collate_fn, batch_size=args.batch_size)
     # print(train_loader[0])
     model.to(device)
     highest_test_acc  = 0.0
@@ -206,55 +191,6 @@ def save_model(epoch_num, model, args):
     print('Model saved.')
 
 
-
-
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--data_dir",
-        type=Path,
-        help="Directory to the dataset.",
-        default="./data/slot/",
-    )
-    parser.add_argument(
-        "--cache_dir",
-        type=Path,
-        help="Directory to the preprocessed caches.",
-        default="./cache/slot/",
-    )
-    parser.add_argument(
-        "--ckpt_dir",
-        type=Path,
-        help="Directory to save the model file.",
-        default="./ckpt/slot/",
-    )
-
-    # data
-    parser.add_argument("--max_len", type=int, default=128)
-
-    # model
-    parser.add_argument("--hidden_size", type=int, default=512)
-    parser.add_argument("--num_layers", type=int, default=2)
-    parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--bidirectional", type=bool, default=True)
-
-    # optimizer
-    parser.add_argument("--learning_rate", type=float, default=1e-3)
-    parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight_decay rate')
-    parser.add_argument('--momentum', type=float, default=0.9, help='initial momentum')
-    # data loader
-    parser.add_argument("--batch_size", type=int, default=1)
-
-    # training
-    parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
-    )
-    parser.add_argument("--num_epochs", type=int, default=100)
-
-    args = parser.parse_args()
-    return args
 
 
 if __name__ == "__main__":
