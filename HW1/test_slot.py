@@ -28,21 +28,26 @@ def parse_args() -> Namespace:
         "--data_dir",
         type=Path,
         help="Directory to the dataset.",
-        default="./data/intent/",
+        default="./data/slot/test.json",
     )
     parser.add_argument(
         "--cache_dir",
         type=Path,
         help="Directory to the preprocessed caches.",
-        default="./cache/intent/",
+        default="./cache/slot/",
     )
     parser.add_argument(
         "--ckpt_dir",
         type=Path,
         help="Directory to save the model file.",
-        default="./ckpt/intent/",
+        default="./ckpt/slot/LSTM_10_14_best_epoch19.pt",
     )
-
+    parser.add_argument(
+        "--pred_file",
+        type=Path,
+        help="File to save the model result.",
+        default="output/slot_test.csv",
+    )
     # data
     parser.add_argument("--max_len", type=int, default=128)
 
@@ -53,13 +58,13 @@ def parse_args() -> Namespace:
     parser.add_argument("--bidirectional", type=bool, default=True)
 
     # data loader
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=1)
 
     # training
     parser.add_argument(
         "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
     )
-    parser.add_argument("--num_epochs", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=20)
 
     args = parser.parse_args()
     return args
@@ -70,7 +75,7 @@ def main(args):
 
 
 
-    data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
+    data_paths = {split: args.data_dir for split in SPLITS}
     data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
 
 
@@ -122,7 +127,7 @@ def test(device, model, datasets, args):
     model.load_state_dict(torch.load(args.ckpt_dir))
     header = ['id', 'tags']
     tags = test_epoch(model, device, test_loader, datasets['test'])
-    with open('output/slot_test.csv', 'w', encoding='UTF8', newline='') as f:
+    with open(args.pred_file, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         writer.writerows(tags)
@@ -132,54 +137,7 @@ def get_device():
     return 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-
-
-
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--data_dir",
-        type=Path,
-        help="Directory to the dataset.",
-        default="./data/slot/",
-    )
-    parser.add_argument(
-        "--cache_dir",
-        type=Path,
-        help="Directory to the preprocessed caches.",
-        default="./cache/slot/",
-    )
-    parser.add_argument(
-        "--ckpt_dir",
-        type=Path,
-        help="Directory to save the model file.",
-        default="./ckpt/slot/",
-    )
-
-    # data
-    parser.add_argument("--max_len", type=int, default=128)
-
-    # model
-    parser.add_argument("--hidden_size", type=int, default=64)
-    parser.add_argument("--num_layers", type=int, default=2)
-    parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--bidirectional", type=bool, default=True)
-
-    # data loader
-    parser.add_argument("--batch_size", type=int, default=1)
-
-    # training
-    parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
-    )
-    parser.add_argument("--num_epochs", type=int, default=100)
-
-    args = parser.parse_args()
-    return args
-
-
 if __name__ == "__main__":
     args = parse_args()
+
     main(args)

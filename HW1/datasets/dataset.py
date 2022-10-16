@@ -200,6 +200,7 @@ class SeqClsDataset(Dataset):
         if self.mode == 'train':
             target = torch.LongTensor(target)
         data = torch.LongTensor(data)
+
         return [data, target]
 
     def label2idx(self, label: str):

@@ -13,7 +13,8 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import trange
-from sklearn.metrics import classification_report, confusion_matrix
+from seqeval.metrics import classification_report
+from sklearn.metrics import confusion_matrix
 
 from datasets.dataset import SeqTaggingClsDataset
 from util.utils import Vocab
@@ -29,42 +30,42 @@ def parse_args() -> Namespace:
         "--data_dir",
         type=Path,
         help="Directory to the dataset.",
-        default="./data/intent/",
+        default="./data/slot/",
     )
     parser.add_argument(
         "--cache_dir",
         type=Path,
         help="Directory to the preprocessed caches.",
-        default="./cache/intent/",
+        default="./cache/slot/",
     )
     parser.add_argument(
         "--ckpt_dir",
         type=Path,
         help="Directory to save the model file.",
-        default="./ckpt/intent/",
+        default="./ckpt/slot/",
     )
 
     # data
     parser.add_argument("--max_len", type=int, default=128)
 
     # model
-    parser.add_argument("--hidden_size", type=int, default=512)
+    parser.add_argument("--hidden_size", type=int, default=64)
     parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--bidirectional", type=bool, default=True)
 
     # optimizer
-    parser.add_argument("--learning_rate", type=float, default=1e-3)
+    parser.add_argument("--learning_rate", type=float, default=0.0003)
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight_decay rate')
     parser.add_argument('--momentum', type=float, default=0.9, help='initial momentum')
     # data loader
-    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--batch_size", type=int, default=1)
 
     # training
     parser.add_argument(
         "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
     )
-    parser.add_argument("--num_epochs", type=int, default=100)
+    parser.add_argument("--num_epochs", type=int, default=30)
 
     args = parser.parse_args()
     return args
@@ -118,16 +119,10 @@ def train_epoch(model, device, dataloader, criterion, optimizer):
         outputs = model(inputs)
         if len(labels.shape) > 1:
             labels = labels.squeeze(0)
-        # print(outputs, labels)
-        # print(outputs.shape, len(labels.shape))
-        # print(labels)
-        
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
         predictions = torch.max(outputs, 1)[1]
-        print(predictions)
-        # print(labels)
         train_loss += loss.item()
         correct = 0
         if torch.equal(predictions, labels):
@@ -137,8 +132,8 @@ def train_epoch(model, device, dataloader, criterion, optimizer):
     return train_loss, train_correct
 
 def valid_epoch(model, device, dataloader, criterion):
-    y_true = np.array([])
-    y_pred = np.array([])
+    y_true = []
+    y_pred = []
     train_loss, train_correct = 0.0, 0
     model.eval()
     with torch.no_grad():
@@ -153,19 +148,19 @@ def valid_epoch(model, device, dataloader, criterion):
                 labels = labels.squeeze(0)
             loss = criterion(outputs, labels)
             predictions = torch.max(outputs, 1)[1]
-            y_true = np.append(y_true, labels.cpu().numpy())
-            y_pred = np.append(y_pred, predictions.cpu().numpy())
+            
+            y_true.append(labels.cpu().tolist())
+            y_pred.append(predictions.cpu().tolist())
             correct = 0
             if torch.equal(predictions, labels):
                 correct = 1 
             train_loss += loss.item()
             train_correct += correct
+        # print(y_true)
     return y_true, y_pred, train_loss, train_correct
 
 def train(device, model, datasets, args, optimizer):
     criterion = nn.CrossEntropyLoss() 
-    y_true = np.array([])
-    y_pred = np.array([])
     train_loader = DataLoader(datasets['train'], batch_size=args.batch_size)
     test_loader = DataLoader(datasets['eval'], batch_size=args.batch_size)
     # print(train_loader[0])
@@ -185,14 +180,12 @@ def train(device, model, datasets, args, optimizer):
         print("    Testing Loss:{:.4f},  Testing Acc {:.2f}".format(test_loss, test_acc))
         if test_acc > highest_test_acc:
             best_epoch_num = epoch+1
-            save_model(best_epoch_num, model, args)
+            # save_model(best_epoch_num, model, args)
             highest_test_acc = test_acc
         
-    y_true = np.append(y_true, true)
-    y_pred = np.append(y_pred, pred)
 
-    print(classification_report(y_true, y_pred))
-    print(confusion_matrix(y_true, y_pred))
+
+    print(classification_report(true, pred))
     # draw_curve(args, average_history)
 
 def get_device():
@@ -204,58 +197,6 @@ def save_model(epoch_num, model, args):
     result = time.localtime(time.time())
     torch.save(model.state_dict(), os.path.join(args.ckpt_dir, 'LSTM_'+str(result.tm_mon)+'_'+str(result.tm_mday)+'_best_epoch'+str(epoch_num)+'.pt'))
     print('Model saved.')
-
-
-
-
-
-
-def parse_args() -> Namespace:
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--data_dir",
-        type=Path,
-        help="Directory to the dataset.",
-        default="./data/slot/",
-    )
-    parser.add_argument(
-        "--cache_dir",
-        type=Path,
-        help="Directory to the preprocessed caches.",
-        default="./cache/slot/",
-    )
-    parser.add_argument(
-        "--ckpt_dir",
-        type=Path,
-        help="Directory to save the model file.",
-        default="./ckpt/slot/",
-    )
-
-    # data
-    parser.add_argument("--max_len", type=int, default=128)
-
-    # model
-    parser.add_argument("--hidden_size", type=int, default=512)
-    parser.add_argument("--num_layers", type=int, default=2)
-    parser.add_argument("--dropout", type=float, default=0.1)
-    parser.add_argument("--bidirectional", type=bool, default=True)
-
-    # optimizer
-    parser.add_argument("--learning_rate", type=float, default=1e-3)
-    parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight_decay rate')
-    parser.add_argument('--momentum', type=float, default=0.9, help='initial momentum')
-    # data loader
-    parser.add_argument("--batch_size", type=int, default=1)
-
-    # training
-    parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
-    )
-    parser.add_argument("--num_epochs", type=int, default=100)
-
-    args = parser.parse_args()
-    return args
-
 
 if __name__ == "__main__":
     args = parse_args()

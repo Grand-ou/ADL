@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader
 from datasets.dataset import SeqClsDataset
 from util.utils import Vocab
 from models.model import SeqClassifier
-
 SPLITS = ['test']
 
 def parse_args() -> Namespace:
@@ -23,7 +22,7 @@ def parse_args() -> Namespace:
         "--data_dir",
         type=Path,
         help="Directory to the dataset.",
-        default="./data/intent/",
+        default="./data/intent/test.json",
     )
     parser.add_argument(
         "--cache_dir",
@@ -35,9 +34,14 @@ def parse_args() -> Namespace:
         "--ckpt_dir",
         type=Path,
         help="Directory to save the model file.",
-        default="./ckpt/intent/",
+        default="./ckpt/intent/LSTM_10_14_best_epoch34.pt",
     )
-
+    parser.add_argument(
+        "--pred_file",
+        type=Path,
+        help="File to save the model result.",
+        default="output/intent_test.csv",
+    )
     # data
     parser.add_argument("--max_len", type=int, default=128)
 
@@ -65,7 +69,7 @@ def main(args):
 
 
 
-    data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
+    data_paths = {split: args.data_dir for split in SPLITS}
     data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
     
     # k = [split for split, split_data in data.items()]
@@ -112,7 +116,7 @@ def test(device, model, datasets, args):
     model.load_state_dict(torch.load(args.ckpt_dir))
     header = ['id', 'intent']
     intents = test_epoch(model, device, test_loader, datasets['test'])
-    with open('output/intent_test.csv', 'w', encoding='UTF8', newline='') as f:
+    with open(args.pred_file, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         writer.writerows(intents)

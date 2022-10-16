@@ -1,14 +1,3 @@
-# Sample Code for Homework 1 ADL NTU
-
-## Environment
-```shell
-# If you have conda, we recommend you to build a conda environment called "adl-hw1"
-make
-conda activate adl-hw1
-pip install -r requirements.txt
-# Otherwise
-pip install -r requirements.in
-```
 
 ## Preprocessing
 ```shell
@@ -16,7 +5,14 @@ pip install -r requirements.in
 bash preprocess.sh
 ```
 
-## Intent detection
+## reproduce
 ```shell
 python train_intent.py
+python train_slot.py
+```
+
+## inference
+```shell
+bash ./intent_cls.sh /path/to/test.json /path/to/pred.csv
+bash ./slot_tag.sh /path/to/test.json /path/to/pred.csv
 ```
